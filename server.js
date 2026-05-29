@@ -44,7 +44,7 @@ app.use('/uploads', express.static(path.join(__dirname, process.env.UPLOAD_DIR |
 
 // ─── Database Connection ──────────────────────────────────────────────────────
 mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rkchat')
+  .connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB connected'))
   .catch((err) => {
     console.error('❌ MongoDB connection error:', err.message);
