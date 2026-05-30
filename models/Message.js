@@ -69,7 +69,20 @@ const messageSchema = new mongoose.Schema(
       enum: ['sent', 'delivered', 'read'],
       default: 'sent',
     },
-    // Soft delete
+    
+    // 🌟 NEW: Check if message is edited
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
+    
+    // 🌟 NEW: Check if message is deleted for everyone
+    isDeletedForEveryone: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Soft delete (Delete for me)
     deletedBy: [
       {
         type: mongoose.Schema.Types.ObjectId,

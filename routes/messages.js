@@ -3,6 +3,8 @@
  * GET  /api/messages/:userId      - Get conversation history with a user
  * POST /api/messages              - Send a message (REST fallback)
  * PUT  /api/messages/:id/read     - Mark messages as read
+ * PUT  /api/messages/:id          - Edit a message (NEW)
+ * DELETE /api/messages/:id        - Delete a message (NEW)
  */
 
 const router = require('express').Router();
@@ -10,7 +12,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
-// ─── GET /api/messages/:userId ────────────────────────────────────────────────
+// ─── GET /api/messages/:userId (Load Messages) ────────────────────────────────
 router.get('/:userId', protect, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -26,7 +28,7 @@ router.get('/:userId', protect, async (req, res) => {
 
     const messages = await Message.find({
       conversationId,
-      deletedBy: { $ne: req.user._id }, // exclude soft-deleted
+      deletedBy: { $ne: req.user._id }, // PERFECT: ये डिलीट किए हुए मैसेज को रोक लेगा
     })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -92,6 +94,52 @@ router.put('/:conversationId/read', protect, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to mark as read.' });
+  }
+});
+
+// 🌟 NEW: PUT /api/messages/:id (मैसेज एडिट करने के लिए) ────────────────────────
+router.put('/:id', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { encryptedContent } = req.body;
+
+    const message = await Message.findOneAndUpdate(
+      { _id: id, sender: req.user._id }, // सिर्फ भेजने वाला ही एडिट कर सकता है
+      { encryptedContent, isEdited: true },
+      { new: true }
+    );
+
+    if (!message) return res.status(404).json({ error: 'Message not found or unauthorized' });
+
+    res.json({ success: true, message });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to edit message' });
+  }
+});
+
+// 🌟 NEW: DELETE /api/messages/:id (मैसेज डिलीट करने के लिए) ──────────────────────
+router.delete('/:id', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { mode } = req.query; // 'me' या 'everyone'
+    const currentUserId = req.user._id;
+
+    if (mode === 'everyone') {
+      // सबके लिए डिलीट: Flag true कर दो
+      await Message.findOneAndUpdate(
+        { _id: id, sender: currentUserId }, // सिर्फ भेजने वाला ही सबके लिए डिलीट कर सकता है
+        { isDeletedForEveryone: true }
+      );
+    } else {
+      // सिर्फ मेरे लिए डिलीट: deletedBy array में मेरी ID डाल दो
+      await Message.findByIdAndUpdate(id, { 
+        $addToSet: { deletedBy: currentUserId } 
+      });
+    }
+
+    res.json({ success: true, message: "Message deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete message' });
   }
 });
 
